@@ -13,6 +13,9 @@
 /.next/
 /out/
 
+/designs
+/FRONTEND_PLAN.md
+
 # production
 /build
 

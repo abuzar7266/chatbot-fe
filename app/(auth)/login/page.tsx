@@ -43,7 +43,7 @@ export default function LoginPage() {
       );
 
       notify.success('Signed in successfully');
-      router.push('/');
+      router.push('/chat');
     } catch (err: any) {
       const message =
         err?.message || 'Failed to sign in. Please check your credentials and try again.';

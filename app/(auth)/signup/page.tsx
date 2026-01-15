@@ -44,7 +44,7 @@ export default function SignupPage() {
         'Sign up successful. Please check your email to verify your account.';
 
       notify.success(message);
-      router.push('/login');
+      router.push('/chat');
     } catch (err: any) {
       const message =
         err?.message ||

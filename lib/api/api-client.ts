@@ -21,7 +21,8 @@ export class ApiClient {
   private defaultHeaders: Record<string, string>;
 
   constructor(baseURL?: string) {
-    this.baseURL = baseURL || (typeof window === 'undefined' ? process.env.NEXT_PUBLIC_APP_URL || '' : '');
+    const envBaseUrl = process.env.NEXT_PUBLIC_APP_URL || '';
+    this.baseURL = baseURL || envBaseUrl;
     this.defaultHeaders = {
       'Content-Type': 'application/json',
     };

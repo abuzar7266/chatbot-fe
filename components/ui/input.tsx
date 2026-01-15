@@ -10,11 +10,13 @@ export interface InputProps
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
   ({ className, type = 'text', variant = 'default', size = 'md', ...props }, ref) => {
     const baseStyles =
-      'flex w-full rounded-md border bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed disabled:opacity-50';
+      'flex w-full rounded-md border px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 disabled:cursor-not-allowed disabled:opacity-50';
 
     const variants = {
-      default: 'border-gray-300',
-      ghost: 'border-transparent bg-gray-100 focus-visible:bg-white',
+      default:
+        'border-slate-700 bg-slate-900 text-slate-50 placeholder:text-slate-500',
+      ghost:
+        'border-transparent bg-slate-800 text-slate-50 placeholder:text-slate-500 focus-visible:bg-slate-900',
     } as const;
 
     const sizes = {

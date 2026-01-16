@@ -7,7 +7,7 @@ import { NotificationToast } from '@/components/notifications/notification-toast
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Next.js Template',
+  title: 'ChatBot',
   description: 'Production-ready Next.js template with TypeScript and best practices',
 };
 

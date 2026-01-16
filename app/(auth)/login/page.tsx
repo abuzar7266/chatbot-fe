@@ -44,9 +44,10 @@ export default function LoginPage() {
 
       notify.success('Signed in successfully');
       router.push('/chat');
-    } catch (err: any) {
+    } catch (error) {
       const message =
-        err?.message || 'Failed to sign in. Please check your credentials and try again.';
+        (error as { message?: string }).message ||
+        'Failed to sign in. Please check your credentials and try again.';
       setError(message);
       notify.error(message);
     } finally {

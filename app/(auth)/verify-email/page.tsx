@@ -52,13 +52,13 @@ export default function VerifyEmailPage() {
         setMessage(response.data.message || 'Your email has been verified.');
         setEmail(response.data.email ?? null);
         setType(response.data.type ?? null);
-      } catch (error: any) {
+      } catch (error) {
         if (cancelled) {
           return;
         }
 
         const fallbackMessage =
-          error?.message ||
+          (error as { message?: string }).message ||
           'We could not verify your email. The link may have expired or already been used.';
 
         setStatus('error');

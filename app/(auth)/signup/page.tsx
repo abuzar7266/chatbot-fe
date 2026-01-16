@@ -47,7 +47,7 @@ export default function SignupPage() {
       login(
         {
           id: user.id,
-          name: (user as any).user_metadata?.fullName ?? user.email ?? '',
+          name: fullName || user.email,
           email: user.email,
         },
         accessToken
@@ -55,9 +55,9 @@ export default function SignupPage() {
 
       notify.success('Signed in successfully');
       router.push('/chat');
-    } catch (err: any) {
+    } catch (error) {
       const message =
-        err?.message ||
+        (error as { message?: string }).message ||
         'Failed to sign up. Please check your details and try again.';
       setError(message);
       notify.error(message);

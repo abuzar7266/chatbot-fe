@@ -24,9 +24,10 @@ const updateUserSchema = z.object({
 // GET /api/users/[id] - Get user by ID
 export async function GET(
   request: NextRequest,
-  { params }: any
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const user = users.find((u) => u.id === params.id);
+  const { id } = await params;
+  const user = users.find((u) => u.id === id);
 
   if (!user) {
     return NextResponse.json({ error: 'User not found' }, { status: 404 });
@@ -38,10 +39,11 @@ export async function GET(
 // PUT /api/users/[id] - Update user
 export async function PUT(
   request: NextRequest,
-  { params }: any
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const userIndex = users.findIndex((u) => u.id === params.id);
+    const { id } = await params;
+    const userIndex = users.findIndex((u) => u.id === id);
 
     if (userIndex === -1) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
@@ -73,9 +75,10 @@ export async function PUT(
 // DELETE /api/users/[id] - Delete user
 export async function DELETE(
   request: NextRequest,
-  { params }: any
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const userIndex = users.findIndex((u) => u.id === params.id);
+  const { id } = await params;
+  const userIndex = users.findIndex((u) => u.id === id);
 
   if (userIndex === -1) {
     return NextResponse.json({ error: 'User not found' }, { status: 404 });

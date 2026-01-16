@@ -1,12 +1,17 @@
 'use client';
 
 import { useState } from 'react';
+import { z } from 'zod';
 import { UserApi, ProductApi } from '@/lib/api';
+import { ApiSchemas } from '@/lib/api/api-definitions';
 import { Button } from '@/components/ui';
 
+type UserList = z.infer<typeof ApiSchemas.userList>;
+type Product = z.infer<typeof ApiSchemas.product>;
+
 export default function ApiExamplePage() {
-  const [users, setUsers] = useState<any[]>([]);
-  const [products, setProducts] = useState<any[]>([]);
+  const [users, setUsers] = useState<UserList>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -17,8 +22,10 @@ export default function ApiExamplePage() {
     try {
       const data = await UserApi.getAll();
       setUsers(data);
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch users');
+    } catch (error) {
+      const message =
+        (error as { message?: string }).message || 'Failed to fetch users';
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -34,8 +41,10 @@ export default function ApiExamplePage() {
         password: 'password123',
       });
       setUsers([...users, newUser]);
-    } catch (err: any) {
-      setError(err.message || 'Failed to create user');
+    } catch (error) {
+      const message =
+        (error as { message?: string }).message || 'Failed to create user';
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -48,8 +57,10 @@ export default function ApiExamplePage() {
     try {
       const data = await ProductApi.getAll();
       setProducts(data);
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch products');
+    } catch (error) {
+      const message =
+        (error as { message?: string }).message || 'Failed to fetch products';
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -66,8 +77,10 @@ export default function ApiExamplePage() {
         stock: 10,
       });
       setProducts([...products, newProduct]);
-    } catch (err: any) {
-      setError(err.message || 'Failed to create product');
+    } catch (error) {
+      const message =
+        (error as { message?: string }).message || 'Failed to create product';
+      setError(message);
     } finally {
       setLoading(false);
     }

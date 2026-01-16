@@ -28,9 +28,10 @@ const updateProductSchema = z.object({
 // GET /api/products/[id] - Get product by ID
 export async function GET(
   request: NextRequest,
-  { params }: any
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const product = products.find((p) => p.id === params.id);
+  const { id } = await params;
+  const product = products.find((p) => p.id === id);
 
   if (!product) {
     return NextResponse.json({ error: 'Product not found' }, { status: 404 });
@@ -42,10 +43,11 @@ export async function GET(
 // PATCH /api/products/[id] - Update product
 export async function PATCH(
   request: NextRequest,
-  { params }: any
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const productIndex = products.findIndex((p) => p.id === params.id);
+    const { id } = await params;
+    const productIndex = products.findIndex((p) => p.id === id);
 
     if (productIndex === -1) {
       return NextResponse.json({ error: 'Product not found' }, { status: 404 });
@@ -77,9 +79,10 @@ export async function PATCH(
 // DELETE /api/products/[id] - Delete product
 export async function DELETE(
   request: NextRequest,
-  { params }: any
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const productIndex = products.findIndex((p) => p.id === params.id);
+  const { id } = await params;
+  const productIndex = products.findIndex((p) => p.id === id);
 
   if (productIndex === -1) {
     return NextResponse.json({ error: 'Product not found' }, { status: 404 });

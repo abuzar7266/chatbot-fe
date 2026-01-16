@@ -231,8 +231,6 @@ function ChatMessageList({
           )}
       </div>
 
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-8 bg-gradient-to-b from-[#101010] to-transparent" />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-[#101010] to-transparent" />
     </>
   );
 }
@@ -395,6 +393,12 @@ export default function ChatPage() {
     },
     [setIsInitialLoading, setChats]
   );
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      router.push('/login');
+    }
+  }, [isAuthenticated, router]);
 
   useEffect(() => {
     let cancelled = false;

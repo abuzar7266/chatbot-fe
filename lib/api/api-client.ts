@@ -46,8 +46,9 @@ export class ApiClient {
    * Clear authorization token
    */
   clearAuthToken(): void {
-    const { Authorization, ...rest } = this.defaultHeaders;
-    this.defaultHeaders = rest;
+    const headers = { ...this.defaultHeaders };
+    delete headers.Authorization;
+    this.defaultHeaders = headers;
   }
 
   /**
@@ -60,16 +61,18 @@ export class ApiClient {
   ): Promise<TResponse> {
     const { endpoint, method, requestSchema, responseSchema, headers = {} } = config;
 
-      // Validate request data if schema provided
-      if (requestSchema && data !== undefined) {
-        const validationResult = requestSchema.safeParse(data);
-        if (!validationResult.success) {
-          throw new Error(
-            `Request validation failed: ${validationResult.error.errors.map((e: any) => e.message).join(', ')}`
-          );
-        }
-        data = validationResult.data as TRequest;
+    // Validate request data if schema provided
+    if (requestSchema && data !== undefined) {
+      const validationResult = requestSchema.safeParse(data);
+      if (!validationResult.success) {
+        throw new Error(
+          `Request validation failed: ${validationResult.error.errors
+            .map((issue) => issue.message)
+            .join(', ')}`
+        );
       }
+      data = validationResult.data as TRequest;
+    }
 
     // Build URL
     const url = endpoint.startsWith('http') ? endpoint : `${this.baseURL}${endpoint}`;
@@ -114,7 +117,9 @@ export class ApiClient {
         const validationResult = responseSchema.safeParse(responseData);
         if (!validationResult.success) {
           throw new Error(
-            `Response validation failed: ${validationResult.error.errors.map((e: any) => e.message).join(', ')}`
+            `Response validation failed: ${validationResult.error.errors
+              .map((issue) => issue.message)
+              .join(', ')}`
           );
         }
         return validationResult.data as TResponse;

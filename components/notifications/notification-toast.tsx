@@ -1,7 +1,6 @@
 'use client';
 
 import { useAppStore } from '@/store/app-store';
-import { useEffect } from 'react';
 
 export function NotificationToast() {
   const { notifications, removeNotification } = useAppStore();

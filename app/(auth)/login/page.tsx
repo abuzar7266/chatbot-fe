@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Card,
@@ -17,12 +17,21 @@ import { useNotification } from '@/hooks';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, setLoading, isLoading } = useAuthStore();
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const login = useAuthStore((state) => state.login);
+  const setLoading = useAuthStore((state) => state.setLoading);
+  const isLoading = useAuthStore((state) => state.isLoading);
   const { notify } = useNotification();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      router.push('/');
+    }
+  }, [isAuthenticated, router]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -33,20 +42,30 @@ export default function LoginPage() {
       const response = await AuthApi.signIn({ email, password });
       const { accessToken, user } = response.data;
 
+      let fullName: string | null = null;
+
+      try {
+        const profileResponse = await AuthApi.getProfile();
+        fullName = profileResponse.data.fullName;
+      } catch {
+        fullName = null;
+      }
+
       login(
         {
           id: user.id,
-          name: user.user_metadata?.fullName ?? user.email ?? '',
           email: user.email,
+          fullName,
         },
         accessToken
       );
 
       notify.success('Signed in successfully');
-      router.push('/');
-    } catch (err: any) {
+      router.push('/chat');
+    } catch (error) {
       const message =
-        err?.message || 'Failed to sign in. Please check your credentials and try again.';
+        (error as { message?: string }).message ||
+        'Failed to sign in. Please check your credentials and try again.';
       setError(message);
       notify.error(message);
     } finally {

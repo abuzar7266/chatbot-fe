@@ -63,9 +63,23 @@ export default function LoginPage() {
       notify.success('Signed in successfully');
       router.push('/chat');
     } catch (error) {
-      const message =
-        (error as { message?: string }).message ||
-        'Failed to sign in. Please check your credentials and try again.';
+      let message = 'API error';
+
+      if (error && typeof error === 'object' && 'status' in error) {
+        const apiError = error as {
+          status?: number;
+          message?: string;
+          data?: { message?: string };
+        };
+
+        if (apiError.status === 401) {
+          message =
+            apiError.data?.message ||
+            apiError.message ||
+            'Invalid login credentials';
+        }
+      }
+
       setError(message);
       notify.error(message);
     } finally {

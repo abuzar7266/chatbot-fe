@@ -395,6 +395,15 @@ export default function ChatPage() {
   }, [isThinking]);
 
   const handleNewChat = async () => {
+    const existingEmptyChat = chats.find(
+      (chat) => chat.mode === 'empty' && chat.messages.length === 0
+    );
+
+    if (existingEmptyChat) {
+      router.push(`/chat/${existingEmptyChat.id}`);
+      return;
+    }
+
     try {
       const response = await ChatApi.createChat();
       const chat = response.data.chat;
@@ -786,7 +795,7 @@ export default function ChatPage() {
                 <button
                   type="button"
                   onClick={handleNewChat}
-                  className="flex items-center gap-3 rounded-md px-0 py-1.5 hover:bg-[#111111]"
+                  className="flex w-full items-center gap-3 rounded-md px-2 py-2 hover:bg-[#111111] active:bg-[#262626] transition-colors"
                 >
                   <span className="flex h-8 w-8 items-center justify-center rounded-md bg-[#111111] text-[#e5e7eb]">
                     <Image
@@ -801,7 +810,7 @@ export default function ChatPage() {
 
                 <button
                   type="button"
-                  className="flex items-center gap-3 rounded-md px-0 py-1.5 hover:bg-[#111111]"
+                  className="flex w-full items-center gap-3 rounded-md px-2 py-2 hover:bg-[#111111] active:bg-[#262626] transition-colors"
                 >
                   <span className="flex h-8 w-8 items-center justify-center rounded-md bg-transparent text-[#6b7280]">
                     <Image
@@ -816,7 +825,7 @@ export default function ChatPage() {
 
                 <button
                   type="button"
-                  className="flex items-center gap-3 rounded-md px-0 py-1.5 hover:bg-[#111111]"
+                  className="flex w-full items-center gap-3 rounded-md px-2 py-2 hover:bg-[#111111] active:bg-[#262626] transition-colors"
                 >
                   <span className="flex h-8 w-8 items-center justify-center rounded-md bg-transparent text-[#6b7280]">
                     <Image
@@ -831,7 +840,7 @@ export default function ChatPage() {
 
                 <button
                   type="button"
-                  className="flex items-center gap-3 rounded-md px-0 py-1.5 hover:bg-[#111111]"
+                  className="flex w-full items-center gap-3 rounded-md px-2 py-2 hover:bg-[#111111] active:bg-[#262626] transition-colors"
                 >
                   <span className="flex h-8 w-8 items-center justify-center rounded-md bg-transparent text-[#6b7280]">
                     <Image
@@ -933,10 +942,10 @@ export default function ChatPage() {
                   </button>
                 </div>
 
-                <nav className="mt-6 space-y-4 text-xs text-[#6b7280]">
+                <nav className="mt-6 space-y-3 text-xs text-[#6b7280]">
                   <button
                     type="button"
-                    className="flex h-8 w-8 items-center justify-center rounded-md bg-[#111111] text-[#e5e7eb]"
+                    className="flex w-full items-center justify-center rounded-md bg-[#111111] px-1 py-2 text-[#e5e7eb] active:bg-[#262626] transition-colors"
                   >
                     <Image
                       src="/assets/sidebar-icon-2.svg"
@@ -947,7 +956,7 @@ export default function ChatPage() {
                   </button>
                   <button
                     type="button"
-                    className="flex h-8 w-8 items-center justify-center rounded-md bg-transparent text-[#6b7280] hover:bg-[#111111]"
+                    className="flex w-full items-center justify-center rounded-md bg-transparent px-1 py-2 text-[#6b7280] hover:bg-[#111111] active:bg-[#262626] transition-colors"
                   >
                     <Image
                       src="/assets/sidebar-icon-3.svg"
@@ -958,7 +967,7 @@ export default function ChatPage() {
                   </button>
                   <button
                     type="button"
-                    className="flex h-8 w-8 items-center justify-center rounded-md bg-transparent text-[#6b7280] hover:bg-[#111111]"
+                    className="flex w-full items-center justify-center rounded-md bg-transparent px-1 py-2 text-[#6b7280] hover:bg-[#111111] active:bg-[#262626] transition-colors"
                   >
                     <Image
                       src="/assets/sidebar-icon-4.svg"
@@ -969,7 +978,7 @@ export default function ChatPage() {
                   </button>
                   <button
                     type="button"
-                    className="flex h-8 w-8 items-center justify-center rounded-md bg-transparent text-[#6b7280] hover:bg-[#111111]"
+                    className="flex w-full items-center justify-center rounded-md bg-transparent px-1 py-2 text-[#6b7280] hover:bg-[#111111] active:bg-[#262626] transition-colors"
                   >
                     <Image
                       src="/assets/sidebar-icon-5.svg"

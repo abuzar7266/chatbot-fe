@@ -753,6 +753,7 @@ export default function ChatPage() {
 
     let fullText = '';
     let hasFetchedTitle = false;
+    let hasStartedStreaming = false;
 
     const finalize = () => {
       setIsThinking(false);
@@ -807,6 +808,12 @@ export default function ChatPage() {
 
       ChatApi.streamChat(chatId, trimmed, authToken, (chunk) => {
         if (chunk.role === 'assistant') {
+          if (!hasStartedStreaming) {
+            hasStartedStreaming = true;
+            setIsThinking(false);
+            setPendingAssistantChatId(null);
+          }
+
           fullText += chunk.content;
 
           if (isFirstMessageInEmptyChat && !hasFetchedTitle) {

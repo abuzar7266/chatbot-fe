@@ -17,7 +17,9 @@ import { useNotification } from '@/hooks';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, setLoading, isLoading } = useAuthStore();
+  const login = useAuthStore((state) => state.login);
+  const setLoading = useAuthStore((state) => state.setLoading);
+  const isLoading = useAuthStore((state) => state.isLoading);
   const { notify } = useNotification();
 
   const [email, setEmail] = useState('');

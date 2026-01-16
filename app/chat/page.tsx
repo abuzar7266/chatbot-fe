@@ -1,149 +1,262 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import Image from 'next/image';
+import type { RefObject, UIEvent } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { ChatApi } from '@/lib/api';
 import { useAuthStore } from '@/store/auth-store';
 import { useChatStore } from '@/store';
 import type { Chat, ChatMessage } from '@/store/chat-store';
+import { deriveTitleFromResponse, getDisplayDate, parseMarkdownSections } from '@/lib/chat-utils';
+import { CHAT_QUESTIONS, CHAT_STEPS } from '@/lib/chat-static-content';
+import ChatSidebar from '@/components/chat-sidebar';
 
-type ParsedSection = {
-  heading: string;
-  paragraphs: string[];
+type ChatInputProps = {
+  value: string;
+  onChange: (value: string) => void;
+  onSend: () => void;
+  isThinking: boolean;
+};
+
+type ChatMessageListProps = {
+  selectedChat: Chat | undefined;
+  allMessages: ChatMessage[];
+  messagesContainerRef: RefObject<HTMLDivElement | null>;
+  onScroll: (event: UIEvent<HTMLDivElement>) => void;
+  isMessagesScrollLoading: boolean;
+  isThinking: boolean;
+  pendingAssistantChatId: string | null;
+  currentStreamAssistantId: string | null;
+  loadingDots: string;
+};
+
+function LoadingWorkspace() {
+  return (
+    <div className="flex flex-col items-center gap-4">
+      <div className="h-12 w-12 animate-spin rounded-full border-2 border-[#f9c956] border-t-transparent" />
+      <p className="text-sm text-[#e5e7eb]">Loading your workspace…</p>
+    </div>
+  );
+}
+
+type StaticTabSectionProps = {
+  title: string;
   items: string[];
+  ordered?: boolean;
 };
 
-const parseMarkdownSections = (markdown: string): ParsedSection[] => {
-  const lines = markdown.split('\n');
-  const sections: ParsedSection[] = [];
-  let current: ParsedSection | null = null;
-  let currentParagraph = '';
+function StaticTabSection({ title, items, ordered = false }: StaticTabSectionProps) {
+  const listClass =
+    'space-y-2 pl-5 text-[13px] leading-relaxed text-[#9ca3af]';
 
-  const pushParagraph = () => {
-    if (!current) {
-      return;
-    }
-    const trimmed = currentParagraph.trim();
-    if (trimmed.length > 0) {
-      current.paragraphs.push(trimmed);
-    }
-    currentParagraph = '';
-  };
+  return (
+    <div className="space-y-4 text-sm text-[#e5e7eb]">
+      <h2 className="text-sm font-semibold text-[#f9fafb]">{title}</h2>
+      {ordered ? (
+        <ol className={`list-decimal ${listClass}`}>
+          {items.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ol>
+      ) : (
+        <ul className={`mt-1 list-disc ${listClass}`}>
+          {items.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 
-  for (const rawLine of lines) {
-    const line = rawLine.trim();
+function ChatInput({ value, onChange, onSend, isThinking }: ChatInputProps) {
+  return (
+    <div className="mx-auto flex w-full items-center rounded-full bg-[#171717] px-4 py-2 text-sm text-[#6b7280] ring-1 ring-[#18181b]">
+      <span className="mr-3 flex h-6 w-6 items-center justify-center rounded-full bg-[#111111] text-lg leading-none text-[#9ca3af]">
+        +
+      </span>
+      <input
+        type="text"
+        placeholder="Ask something..."
+        className="mr-3 flex-1 bg-transparent text-[13px] text-[#e5e7eb] outline-none placeholder:text-[#6b7280]"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') {
+            event.preventDefault();
+            onSend();
+          }
+        }}
+      />
+      <button
+        type="button"
+        className="flex h-7 w-7 items-center justify-center rounded-full bg-[#111111]"
+        onClick={onSend}
+        disabled={!value.trim() || isThinking}
+      >
+        <Image
+          src="/assets/chat-send.svg"
+          alt="Send message"
+          width={19}
+          height={19}
+        />
+      </button>
+    </div>
+  );
+}
 
-    if (line.startsWith('## ')) {
-      if (current) {
-        pushParagraph();
-        sections.push(current);
-      }
-      current = {
-        heading: line.slice(3).trim(),
-        paragraphs: [],
-        items: [],
-      };
-      currentParagraph = '';
-      continue;
-    }
-
-    if (line.startsWith('- ')) {
-      if (!current) {
-        current = {
-          heading: '',
-          paragraphs: [],
-          items: [],
-        };
-      }
-      pushParagraph();
-      current.items.push(line.slice(2).trim());
-      continue;
-    }
-
-    if (line === '') {
-      pushParagraph();
-      continue;
-    }
-
-    if (!current) {
-      current = {
-        heading: '',
-        paragraphs: [],
-        items: [],
-      };
-    }
-
-    if (currentParagraph.length > 0) {
-      currentParagraph += ' ';
-    }
-    currentParagraph += line;
+function ChatMessageList({
+  selectedChat,
+  allMessages,
+  messagesContainerRef,
+  onScroll,
+  isMessagesScrollLoading,
+  isThinking,
+  pendingAssistantChatId,
+  currentStreamAssistantId,
+  loadingDots,
+}: ChatMessageListProps) {
+  if (selectedChat?.isMessagesLoading && allMessages.length === 0) {
+    return (
+      <div className="flex h-full items-center justify-center text-xs text-[#6b7280]">
+        Loading chat messages...
+      </div>
+    );
   }
 
-  if (current) {
-    pushParagraph();
-    sections.push(current);
-  }
+  return (
+    <>
+      <div
+        ref={messagesContainerRef}
+        onScroll={onScroll}
+        className="scrollbar-hidden absolute inset-0 space-y-4 overflow-y-auto pr-1"
+      >
+        {!selectedChat?.isMessagesLoading && allMessages.length === 0 && (
+          <div className="text-center text-xs text-[#6b7280]">
+            No messages yet. Ask something to start the conversation.
+          </div>
+        )}
 
-  return sections;
-};
+        {allMessages.map((message) => {
+          const { dateLabel, timeLabel } = getDisplayDate(message);
 
-const getDisplayDate = (message: ChatMessage) => {
-  const original = new Date(message.createdAt);
-  const date =
-    message.source === 'api'
-      ? new Date(original.getTime() + 5 * 60 * 60 * 1000)
-      : original;
+          if (message.role === 'user') {
+            return (
+              <div key={message.id} className="flex justify-end text-[13px]">
+                <div className="max-w-[75%] rounded-2xl bg-[#171717] px-3 py-2 text-[#e5e7eb]">
+                  <p className="whitespace-pre-wrap break-words">
+                    {message.content}
+                  </p>
+                  <div className="mt-1 text-right text-[10px] text-[#6b7280]">
+                    {dateLabel} • {timeLabel}
+                  </div>
+                </div>
+              </div>
+            );
+          }
 
-  const dateLabel = date.toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
+          const sections = parseMarkdownSections(message.content);
 
-  const timeLabel = date.toLocaleTimeString(undefined, {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+          return (
+            <div key={message.id} className="flex items-start gap-2 text-[13px]">
+              <div className="mt-1 flex h-7 w-7 items-center justify-center rounded-full bg-[#111111] text-[11px] text-[#e5e7eb]">
+                AI
+              </div>
+              <div className="max-w-[75%] rounded-2xl bg-[#111111] px-3 py-2 text-[#e5e7eb]">
+                {sections.length > 0 ? (
+                  sections.map((section) => (
+                    <div
+                      key={section.heading || section.paragraphs.join(' ')}
+                      className="space-y-2"
+                    >
+                      {section.heading && (
+                        <h2 className="text-[13px] font-semibold text-[#f9fafb]">
+                          {section.heading}
+                        </h2>
+                      )}
+                      {section.paragraphs.map((paragraph, index) => (
+                        <p
+                          key={index}
+                          className="text-[13px] leading-relaxed text-[#e5e7eb]"
+                        >
+                          {paragraph}
+                        </p>
+                      ))}
+                      {section.items.length > 0 && (
+                        <ul className="list-disc space-y-1 pl-5 text-[13px] leading-relaxed text-[#e5e7eb]">
+                          {section.items.map((item, index) => (
+                            <li key={index}>{item}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <p className="whitespace-pre-wrap break-words text-[13px]">
+                    {message.content}
+                  </p>
+                )}
+                <div className="mt-1 text-[10px] text-[#6b7280]">
+                  {dateLabel} • {timeLabel}
+                </div>
+              </div>
+            </div>
+          );
+        })}
 
-  return { dateLabel, timeLabel };
-};
+        {selectedChat?.isLoadingMoreMessages && (
+          <div className="text-center text-[11px] text-[#6b7280]">
+            Loading earlier messages...
+          </div>
+        )}
 
-const deriveTitleFromResponse = (markdown: string): string => {
-  const lines = markdown.split('\n');
-  for (const line of lines) {
-    const trimmedLine = line.trim();
-    if (trimmedLine.startsWith('## ')) {
-      return trimmedLine.slice(3);
-    }
-  }
+        {isThinking &&
+          pendingAssistantChatId === selectedChat?.id &&
+          currentStreamAssistantId === null && (
+            <div className="flex items-start gap-2 text-[13px] text-[#9ca3af]">
+              <div className="mt-1 flex h-7 w-7 items-center justify-center rounded-full bg-[#111111] text-[11px] text-[#e5e7eb]">
+                AI
+              </div>
+              <div className="max-w-[75%] rounded-2xl bg-[#111111] px-3 py-2">
+                <p className="whitespace-pre-wrap break-words">{loadingDots}</p>
+                <div className="mt-1 text-[10px] text-[#6b7280]">
+                  {new Date().toLocaleTimeString(undefined, {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+      </div>
 
-  const firstNonEmpty = lines.find((line) => line.trim().length > 0);
-  if (firstNonEmpty) {
-    const cleaned = firstNonEmpty.trim();
-    return cleaned.length > 60 ? `${cleaned.slice(0, 57)}...` : cleaned;
-  }
-
-  return 'New chat';
-};
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-8 bg-gradient-to-b from-[#101010] to-transparent" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-[#101010] to-transparent" />
+    </>
+  );
+}
 
 export default function ChatPage() {
-  const { isAuthenticated, token, user } = useAuthStore();
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const token = useAuthStore((state) => state.token);
+  const user = useAuthStore((state) => state.user);
   const router = useRouter();
   const pathname = usePathname();
   const pathSegments = pathname.split('/').filter(Boolean);
   const chatIdFromUrl = pathSegments.length >= 2 && pathSegments[0] === 'chat' ? pathSegments[1] : '';
-  const { chats, setChats, isInitialLoading, setIsInitialLoading } = useChatStore();
+  const chats = useChatStore((state) => state.chats);
+  const setChats = useChatStore((state) => state.setChats);
+  const isInitialLoading = useChatStore((state) => state.isInitialLoading);
+  const setIsInitialLoading = useChatStore((state) => state.setIsInitialLoading);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState<'output' | 'steps' | 'questions'>('output');
 
   const [inputValue, setInputValue] = useState('');
   const [pendingAssistantChatId, setPendingAssistantChatId] = useState<string | null>(null);
   const [isThinking, setIsThinking] = useState(false);
-  const [, setStreamedText] = useState('');
   const [loadingDots, setLoadingDots] = useState('...');
   const [currentStreamAssistantId, setCurrentStreamAssistantId] = useState<string | null>(null);
-  const [pendingTitleChatId] = useState<string | null>(null);
   const [isMessagesScrollLoading, setIsMessagesScrollLoading] = useState(false);
   const [shouldScrollToBottom, setShouldScrollToBottom] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
@@ -183,6 +296,28 @@ export default function ChatPage() {
     ? chats.find((chat) => chat.id === chatIdFromUrl)
     : chats[0];
   const allMessages = selectedChat?.messages ?? [];
+
+  const handleOpenSidebar = () => {
+    setIsSidebarOpen(true);
+  };
+
+  const handleCloseSidebar = () => {
+    setIsSidebarOpen(false);
+  };
+
+  const handleToggleProfileMenu = () => {
+    setIsProfileMenuOpen((previous) => !previous);
+  };
+
+  const handleSelectChat = (chatId: string) => {
+    const path = `/chat/${chatId}`;
+    router.push(path);
+  };
+
+  const handleLogout = () => {
+    useAuthStore.getState().logout();
+    router.push('/login');
+  };
 
   const loadMessagesForChat = useCallback(
     async (chatId: string) => {
@@ -600,7 +735,6 @@ export default function ChatPage() {
     setInputValue('');
     setPendingAssistantChatId(chatId);
     setIsThinking(true);
-    setStreamedText('');
     setActiveTab('output');
     setCurrentStreamAssistantId(null);
     setShouldScrollToBottom(true);
@@ -611,7 +745,6 @@ export default function ChatPage() {
     const finalize = () => {
       setIsThinking(false);
       setPendingAssistantChatId(null);
-      setStreamedText('');
       setCurrentStreamAssistantId(null);
 
       if (!fullText) {
@@ -731,7 +864,7 @@ export default function ChatPage() {
         })
       );
 
-      setStreamedText(fullText);
+      // fullText is kept in closure for title derivation
     })
       .then(() => {
         finalize();
@@ -744,10 +877,7 @@ export default function ChatPage() {
   if (isInitialLoading && chats.length === 0) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#111111] text-slate-50">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-12 w-12 animate-spin rounded-full border-2 border-[#f9c956] border-t-transparent" />
-          <p className="text-sm text-[#e5e7eb]">Loading your workspace…</p>
-        </div>
+        <LoadingWorkspace />
       </main>
     );
   }
@@ -755,253 +885,21 @@ export default function ChatPage() {
   return (
     <main className="min-h-screen bg-[#111111] text-slate-50">
       <div className="flex h-screen">
-        <aside
-          className={`hidden h-full flex-col bg-[#171717] border-r border-[#18181b] md:flex ${
-            isSidebarOpen ? 'w-60' : 'w-16'
-          }`}
-        >
-          {isSidebarOpen ? (
-            <div className="flex h-full flex-col px-3 py-4">
-              <div className="flex items-center justify-between gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsSidebarOpen(true)}
-                  className={`flex h-8 w-8 items-center justify-center rounded-md ${
-                    isSidebarOpen
-                      ? 'bg-[#111111] text-[#e5e7eb]'
-                      : 'bg-transparent text-[#6b7280] hover:bg-[#111111]'
-                  }`}
-                >
-                  <Image
-                    src="/assets/sidebar-open.svg"
-                    alt="Open sidebar"
-                    width={20}
-                    height={20}
-                  />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsSidebarOpen(false)}
-                  className={`flex h-8 w-8 items-center justify-center rounded-md ${
-                    !isSidebarOpen
-                      ? 'bg-[#111111] text-[#e5e7eb]'
-                      : 'bg-transparent text-[#6b7280] hover:bg-[#111111]'
-                  }`}
-                >
-                  <Image
-                    src="/assets/sidebar-icon-1.svg"
-                    alt="Collapse sidebar"
-                    width={20}
-                    height={20}
-                  />
-                </button>
-              </div>
-
-              <div className="mt-6 space-y-2 text-xs text-[#e5e7eb]">
-                <button
-                  type="button"
-                  onClick={handleNewChat}
-                  className="flex w-full items-center gap-3 rounded-md px-2 py-2 hover:bg-[#111111] active:bg-[#262626] transition-colors"
-                >
-                  <span className="flex h-8 w-8 items-center justify-center rounded-md bg-[#111111] text-[#e5e7eb]">
-                    <Image
-                      src="/assets/sidebar-icon-2.svg"
-                      alt="New chat"
-                      width={20}
-                      height={20}
-                    />
-                  </span>
-                  <span>New chat</span>
-                </button>
-
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-3 rounded-md px-2 py-2 hover:bg-[#111111] active:bg-[#262626] transition-colors"
-                >
-                  <span className="flex h-8 w-8 items-center justify-center rounded-md bg-transparent text-[#6b7280]">
-                    <Image
-                      src="/assets/sidebar-icon-3.svg"
-                      alt="Quick actions"
-                      width={20}
-                      height={20}
-                    />
-                  </span>
-                  <span>Quick Actions</span>
-                </button>
-
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-3 rounded-md px-2 py-2 hover:bg-[#111111] active:bg-[#262626] transition-colors"
-                >
-                  <span className="flex h-8 w-8 items-center justify-center rounded-md bg-transparent text-[#6b7280]">
-                    <Image
-                      src="/assets/sidebar-icon-4.svg"
-                      alt="Spaces"
-                      width={20}
-                      height={20}
-                    />
-                  </span>
-                  <span>Spaces</span>
-                </button>
-
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-3 rounded-md px-2 py-2 hover:bg-[#111111] active:bg-[#262626] transition-colors"
-                >
-                  <span className="flex h-8 w-8 items-center justify-center rounded-md bg-transparent text-[#6b7280]">
-                    <Image
-                      src="/assets/sidebar-icon-5.svg"
-                      alt="Chat history"
-                      width={20}
-                      height={20}
-                    />
-                  </span>
-                  <span>Chat History</span>
-                </button>
-              </div>
-
-              <div className="mt-4 space-y-1.5 text-xs text-[#9ca3af]">
-                {chats
-                  .filter(chat => {
-                    const isDefaultEmptyChat =
-                      (chat.title || '').trim().toLowerCase() === 'new chat' &&
-                      chat.mode === 'empty' &&
-                      (chat.messages?.length ?? 0) === 0;
-
-                    if (!isDefaultEmptyChat) {
-                      return true;
-                    }
-
-                    return chat.id === selectedChat?.id;
-                  })
-                  .map(chat => {
-                  const isActive = chat.id === selectedChat?.id;
-                  return (
-                    <button
-                      key={chat.id}
-                      type="button"
-                      onClick={() => {
-                        const path = `/chat/${chat.id}`;
-                        router.push(path);
-                      }}
-                      className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-left ${
-                        isActive ? 'bg-[#525252] text-[#f9fafb]' : 'hover:bg-[#050815]'
-                      }`}
-                    >
-                      <span className="line-clamp-1 text-xs">{chat.title}</span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="relative mt-auto border-t border-[#18181b] pt-4 text-[11px] text-[#9ca3af]">
-                <button
-                  type="button"
-                  onClick={() => setIsProfileMenuOpen((previous) => !previous)}
-                  className="flex w-full items-center gap-2 rounded-md px-1 py-1 hover:bg-[#111111]"
-                >
-                  <div className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-full bg-[#111111] text-[10px] font-semibold uppercase text-[#e5e7eb]">
-                    {initials || displayName.slice(0, 2).toUpperCase()}
-                  </div>
-                  <div className="flex flex-col items-start">
-                    <span className="text-xs font-medium text-[#e5e7eb]">{displayName}</span>
-                    {displayEmail && (
-                      <span className="text-[10px] text-[#6b7280]">{displayEmail}</span>
-                    )}
-                  </div>
-                </button>
-                {isProfileMenuOpen && (
-                  <div className="absolute bottom-10 left-0 z-20 w-40 rounded-md border border-[#27272a] bg-[#18181b] py-1 text-xs text-[#e5e7eb] shadow-lg">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        useAuthStore.getState().logout();
-                        router.push('/login');
-                      }}
-                      className="flex w-full items-center px-3 py-1.5 text-left hover:bg-[#111111]"
-                    >
-                      Logout
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="flex h-full flex-col justify-between px-3 py-4">
-              <div className="flex flex-col">
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsSidebarOpen(true)}
-                    className={`flex h-8 w-8 items-center justify-center rounded-md ${
-                      isSidebarOpen
-                        ? 'bg-[#111111] text-[#e5e7eb]'
-                        : 'bg-transparent text-[#6b7280] hover:bg-[#111111]'
-                    }`}
-                  >
-                    <Image
-                      src="/assets/sidebar-open.svg"
-                      alt="Open sidebar"
-                      width={20}
-                      height={20}
-                    />
-                  </button>
-                </div>
-
-                <nav className="mt-6 space-y-3 text-xs text-[#6b7280]">
-                  <button
-                    type="button"
-                    className="flex w-full items-center justify-center rounded-md bg-[#111111] px-1 py-2 text-[#e5e7eb] active:bg-[#262626] transition-colors"
-                  >
-                    <Image
-                      src="/assets/sidebar-icon-2.svg"
-                      alt="New chat"
-                      width={20}
-                      height={20}
-                    />
-                  </button>
-                  <button
-                    type="button"
-                    className="flex w-full items-center justify-center rounded-md bg-transparent px-1 py-2 text-[#6b7280] hover:bg-[#111111] active:bg-[#262626] transition-colors"
-                  >
-                    <Image
-                      src="/assets/sidebar-icon-3.svg"
-                      alt="Quick actions"
-                      width={20}
-                      height={20}
-                    />
-                  </button>
-                  <button
-                    type="button"
-                    className="flex w-full items-center justify-center rounded-md bg-transparent px-1 py-2 text-[#6b7280] hover:bg-[#111111] active:bg-[#262626] transition-colors"
-                  >
-                    <Image
-                      src="/assets/sidebar-icon-4.svg"
-                      alt="Spaces"
-                      width={20}
-                      height={20}
-                    />
-                  </button>
-                  <button
-                    type="button"
-                    className="flex w-full items-center justify-center rounded-md bg-transparent px-1 py-2 text-[#6b7280] hover:bg-[#111111] active:bg-[#262626] transition-colors"
-                  >
-                    <Image
-                      src="/assets/sidebar-icon-5.svg"
-                      alt="Chat history"
-                      width={20}
-                      height={20}
-                    />
-                  </button>
-                </nav>
-              </div>
-
-              <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-[#111111] text-xs font-semibold uppercase text-[#e5e7eb]">
-                {initials || displayName.slice(0, 2).toUpperCase()}
-              </div>
-            </div>
-          )}
-        </aside>
+        <ChatSidebar
+          isSidebarOpen={isSidebarOpen}
+          onOpenSidebar={handleOpenSidebar}
+          onCloseSidebar={handleCloseSidebar}
+          onNewChat={handleNewChat}
+          onSelectChat={handleSelectChat}
+          chats={chats}
+          selectedChat={selectedChat}
+          initials={initials}
+          displayName={displayName}
+          displayEmail={displayEmail}
+          isProfileMenuOpen={isProfileMenuOpen}
+          onToggleProfileMenu={handleToggleProfileMenu}
+          onLogout={handleLogout}
+        />
 
         <section className="flex flex-1 flex-col bg-[#101010]">
           <header className="flex items-center justify-end px-6 py-4">
@@ -1017,10 +915,7 @@ export default function ChatPage() {
             <div className="flex w-full max-w-4xl flex-col">
               {isInitialLoading ? (
                 <div className="flex flex-1 items-center justify-center">
-                  <div className="flex flex-col items-center gap-4">
-                    <div className="h-12 w-12 animate-spin rounded-full border-2 border-[#f9c956] border-t-transparent" />
-                    <p className="text-sm text-[#e5e7eb]">Loading your workspace…</p>
-                  </div>
+                  <LoadingWorkspace />
                 </div>
               ) : selectedChat?.mode === 'empty' && allMessages.length === 0 ? (
                 <div className="flex flex-1 items-center justify-center">
@@ -1035,50 +930,21 @@ export default function ChatPage() {
                       />
                     </div>
                     <div className="w-full max-w-xl">
-                      <div className="mx-auto flex w-full items-center rounded-full bg-[#171717] px-4 py-2 text-sm text-[#6b7280] ring-1 ring-[#18181b]">
-                        <span className="mr-3 flex h-6 w-6 items-center justify-center rounded-full bg-[#111111] text-lg leading-none text-[#9ca3af]">
-                          +
-                        </span>
-                        <input
-                          type="text"
-                          placeholder="Ask something..."
-                          className="mr-3 flex-1 bg-transparent text-[13px] text-[#e5e7eb] outline-none placeholder:text-[#6b7280]"
-                          value={inputValue}
-                          onChange={(event) => setInputValue(event.target.value)}
-                          onKeyDown={(event) => {
-                            if (event.key === 'Enter') {
-                              event.preventDefault();
-                              handleSendMessage();
-                            }
-                          }}
-                        />
-                        <button
-                          type="button"
-                          className="flex h-7 w-7 items-center justify-center rounded-full bg-[#111111]"
-                          onClick={handleSendMessage}
-                          disabled={!inputValue.trim() || isThinking}
-                        >
-                          <Image
-                            src="/assets/chat-send.svg"
-                            alt="Send message"
-                            width={19}
-                            height={19}
-                          />
-                        </button>
-                      </div>
+                      <ChatInput
+                        value={inputValue}
+                        onChange={setInputValue}
+                        onSend={handleSendMessage}
+                        isThinking={isThinking}
+                      />
                     </div>
                   </div>
                 </div>
               ) : (
                 <div className="flex-1 rounded-3xl bg-[#101010]">
                   <div className="relative flex h-full flex-col">
-                    <div className="pointer-events-none absolute inset-x-0 top-0 z-10 px-0 pt-0">
+                    <div className="absolute inset-x-0 top-0 z-10 px-0 pt-0">
                       <div className="flex flex-col gap-4">
-                        <h1
-                          className={`text-xl font-semibold text-[#f9fafb] transition-opacity duration-500 ${
-                            pendingTitleChatId === selectedChat?.id ? 'opacity-40' : 'opacity-100'
-                          }`}
-                        >
+                        <h1 className="text-xl font-semibold text-[#f9fafb]">
                           {selectedChat?.title}
                         </h1>
                         <div className="inline-flex items-center gap-2 rounded-full bg-transparent p-1 text-xs">
@@ -1119,192 +985,52 @@ export default function ChatPage() {
                       </div>
                     </div>
 
-                    {activeTab === 'output' && (
-                      <div className="flex h-full flex-col gap-4 pt-20 text-sm text-[#e5e7eb]">
-                        <div className="relative flex-1">
-                          {selectedChat?.isMessagesLoading && allMessages.length === 0 ? (
-                            <div className="flex h-full items-center justify-center text-xs text-[#6b7280]">
-                              Loading chat messages...
-                            </div>
-                          ) : (
-                            <>
-                              <div
-                                ref={messagesContainerRef}
-                                onScroll={handleMessagesScroll}
-                                className="scrollbar-hidden absolute inset-0 space-y-4 overflow-y-auto pr-1"
-                              >
-                                {!selectedChat?.isMessagesLoading &&
-                                  allMessages.length === 0 && (
-                                    <div className="text-center text-xs text-[#6b7280]">
-                                      No messages yet. Ask something to start the conversation.
-                                    </div>
-                                  )}
-
-                                {allMessages.map((message) => {
-                            const { dateLabel, timeLabel } = getDisplayDate(message);
-
-                            if (message.role === 'user') {
-                              return (
-                                <div key={message.id} className="flex justify-end text-[13px]">
-                                  <div className="max-w-[75%] rounded-2xl bg-[#171717] px-3 py-2 text-[#e5e7eb]">
-                                    <p className="whitespace-pre-wrap break-words">
-                                      {message.content}
-                                    </p>
-                                    <div className="mt-1 text-right text-[10px] text-[#6b7280]">
-                                      {dateLabel} • {timeLabel}
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            }
-
-                            const sections = parseMarkdownSections(message.content);
-
-                            return (
-                              <div key={message.id} className="flex items-start gap-2 text-[13px]">
-                                <div className="mt-1 flex h-7 w-7 items-center justify-center rounded-full bg-[#111111] text-[11px] text-[#e5e7eb]">
-                                  AI
-                                </div>
-                                <div className="max-w-[75%] rounded-2xl bg-[#111111] px-3 py-2 text-[#e5e7eb]">
-                                  {sections.length > 0 ? (
-                                    sections.map((section) => (
-                                      <div
-                                        key={section.heading || section.paragraphs.join(' ')}
-                                        className="space-y-2"
-                                      >
-                                        {section.heading && (
-                                          <h2 className="text-[13px] font-semibold text-[#f9fafb]">
-                                            {section.heading}
-                                          </h2>
-                                        )}
-                                        {section.paragraphs.map((paragraph, index) => (
-                                          <p
-                                            key={index}
-                                            className="text-[13px] leading-relaxed text-[#e5e7eb]"
-                                          >
-                                            {paragraph}
-                                          </p>
-                                        ))}
-                                        {section.items.length > 0 && (
-                                          <ul className="list-disc space-y-1 pl-5 text-[13px] leading-relaxed text-[#e5e7eb]">
-                                            {section.items.map((item, index) => (
-                                              <li key={index}>{item}</li>
-                                            ))}
-                                          </ul>
-                                        )}
-                                      </div>
-                                    ))
-                                  ) : (
-                                    <p className="whitespace-pre-wrap break-words text-[13px]">
-                                      {message.content}
-                                    </p>
-                                  )}
-                                  <div className="mt-1 text-[10px] text-[#6b7280]">
-                                    {dateLabel} • {timeLabel}
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                                })}
-
-                                {selectedChat?.isLoadingMoreMessages && (
-                                  <div className="text-center text-[11px] text-[#6b7280]">
-                                    Loading earlier messages...
-                                  </div>
-                                )}
-
-                                {isThinking &&
-                                  pendingAssistantChatId === selectedChat?.id &&
-                                  currentStreamAssistantId === null && (
-                                    <div className="flex items-start gap-2 text-[13px] text-[#9ca3af]">
-                                      <div className="mt-1 flex h-7 w-7 items-center justify-center rounded-full bg-[#111111] text-[11px] text-[#e5e7eb]">
-                                        AI
-                                      </div>
-                                      <div className="max-w-[75%] rounded-2xl bg-[#111111] px-3 py-2">
-                                        <p className="whitespace-pre-wrap break-words">
-                                          {loadingDots}
-                                        </p>
-                                        <div className="mt-1 text-[10px] text-[#6b7280]">
-                                          {new Date().toLocaleTimeString(undefined, {
-                                            hour: '2-digit',
-                                            minute: '2-digit',
-                                          })}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  )}
-                              </div>
-
-                              <div className="pointer-events-none absolute inset-x-0 top-0 h-8 bg-gradient-to-b from-[#101010] to-transparent" />
-                              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-[#101010] to-transparent" />
-                            </>
-                          )}
+                    <div className="flex h-full flex-col pt-20">
+                      {activeTab === 'output' && (
+                        <div className="flex h-full flex-col gap-4 text-sm text-[#e5e7eb]">
+                          <div className="relative flex-1">
+                            <ChatMessageList
+                              selectedChat={selectedChat}
+                              allMessages={allMessages}
+                              messagesContainerRef={messagesContainerRef}
+                              onScroll={handleMessagesScroll}
+                              isMessagesScrollLoading={isMessagesScrollLoading}
+                              isThinking={isThinking}
+                              pendingAssistantChatId={pendingAssistantChatId}
+                              currentStreamAssistantId={currentStreamAssistantId}
+                              loadingDots={loadingDots}
+                            />
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
 
-                    {activeTab === 'steps' && (
-                      <div className="space-y-4 text-sm text-[#e5e7eb]">
-                        <h2 className="text-sm font-semibold text-[#f9fafb]">Steps</h2>
-                        <ol className="list-decimal space-y-2 pl-5 text-[13px] leading-relaxed text-[#9ca3af]">
-                          <li>Review recent sales of comparable properties in the same suburb.</li>
-                          <li>Inspect the property to confirm condition, layout, and unique features.</li>
-                          <li>Adjust for differences in land size, floor area, and renovations.</li>
-                          <li>Align pricing with current buyer demand and vendor expectations.</li>
-                          <li>Prepare a clear recommendation range for the campaign strategy.</li>
-                        </ol>
-                      </div>
-                    )}
+                      {activeTab === 'steps' && (
+                        <StaticTabSection
+                          title="Steps"
+                          items={CHAT_STEPS as string[]}
+                          ordered
+                        />
+                      )}
 
-                    {activeTab === 'questions' && (
-                      <div className="space-y-4 text-sm text-[#e5e7eb]">
-                        <h2 className="text-sm font-semibold text-[#f9fafb]">Questions</h2>
-                        <ul className="mt-1 list-disc space-y-2 pl-5 text-[13px] leading-relaxed text-[#9ca3af]">
-                          <li>How sensitive is buyer demand to small changes in price range here?</li>
-                          <li>Which comparable sales should be weighted most heavily for this CMA?</li>
-                          <li>What impact do recent renovations have on achievable sale price?</li>
-                          <li>How does this property compete with current on-market listings?</li>
-                          <li>What auction or campaign strategy best fits this recommendation?</li>
-                        </ul>
-                      </div>
-                    )}
+                      {activeTab === 'questions' && (
+                        <StaticTabSection
+                          title="Questions"
+                          items={CHAT_QUESTIONS as string[]}
+                        />
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
 
               {selectedChat?.mode !== 'empty' && (
                 <div className="mt-4">
-                  <div className="mx-auto flex w-full items-center rounded-full bg-[#171717] px-4 py-2 text-sm text-[#6b7280] ring-1 ring-[#18181b]">
-                    <span className="mr-3 flex h-6 w-6 items-center justify-center rounded-full bg-[#111111] text-lg leading-none text-[#9ca3af]">
-                      +
-                    </span>
-                    <input
-                      type="text"
-                      placeholder="Ask something..."
-                      className="mr-3 flex-1 bg-transparent text-[13px] text-[#e5e7eb] outline-none placeholder:text-[#6b7280]"
-                      value={inputValue}
-                      onChange={(event) => setInputValue(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter') {
-                          event.preventDefault();
-                          handleSendMessage();
-                        }
-                      }}
-                    />
-                    <button
-                      type="button"
-                      className="flex h-7 w-7 items-center justify-center rounded-full bg-[#111111]"
-                      onClick={handleSendMessage}
-                      disabled={!inputValue.trim() || isThinking}
-                    >
-                      <Image
-                        src="/assets/chat-send.svg"
-                        alt="Send message"
-                        width={19}
-                        height={19}
-                      />
-                    </button>
-                  </div>
+                  <ChatInput
+                    value={inputValue}
+                    onChange={setInputValue}
+                    onSend={handleSendMessage}
+                    isThinking={isThinking}
+                  />
                 </div>
               )}
             </div>

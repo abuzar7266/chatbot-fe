@@ -24,7 +24,6 @@ type ChatMessageListProps = {
   allMessages: ChatMessage[];
   messagesContainerRef: RefObject<HTMLDivElement | null>;
   onScroll: (event: UIEvent<HTMLDivElement>) => void;
-  isMessagesScrollLoading: boolean;
   isThinking: boolean;
   pendingAssistantChatId: string | null;
   currentStreamAssistantId: string | null;
@@ -111,7 +110,6 @@ function ChatMessageList({
   allMessages,
   messagesContainerRef,
   onScroll,
-  isMessagesScrollLoading,
   isThinking,
   pendingAssistantChatId,
   currentStreamAssistantId,
@@ -259,6 +257,7 @@ export default function ChatPage() {
   const [shouldScrollToBottom, setShouldScrollToBottom] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
+  const thinkTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const rawName = user?.fullName?.trim() || '';
   const rawEmail = user?.email?.trim() || '';
@@ -519,6 +518,15 @@ export default function ChatPage() {
 
     loadMessagesForChat(chatId);
   }, [isAuthenticated, chatIdFromUrl, selectedChat?.id, loadMessagesForChat]);
+
+  useEffect(() => {
+    return () => {
+      if (thinkTimeoutRef.current) {
+        clearTimeout(thinkTimeoutRef.current);
+        thinkTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!isThinking) {
@@ -784,98 +792,112 @@ export default function ChatPage() {
       return;
     }
 
-    ChatApi.streamChat(chatId, trimmed, authToken, (chunk) => {
-      if (chunk.role === 'assistant') {
-        fullText += chunk.content;
+    if (thinkTimeoutRef.current) {
+      clearTimeout(thinkTimeoutRef.current);
+      thinkTimeoutRef.current = null;
+    }
 
-        if (isFirstMessageInEmptyChat && !hasFetchedTitle) {
-          hasFetchedTitle = true;
+    const minDelayMs = 2000;
+    const maxDelayMs = 5000;
+    const delayMs =
+      Math.floor(Math.random() * (maxDelayMs - minDelayMs + 1)) + minDelayMs;
 
-          ChatApi.getChat(chatId)
-            .then((response) => {
-              const remoteChat = response.data;
+    thinkTimeoutRef.current = setTimeout(() => {
+      thinkTimeoutRef.current = null;
 
-              setChats((previous) =>
-                previous.map((chat) => {
-                  if (chat.id !== chatId) {
-                    return chat;
-                  }
+      ChatApi.streamChat(chatId, trimmed, authToken, (chunk) => {
+        if (chunk.role === 'assistant') {
+          fullText += chunk.content;
 
-                  return {
-                    ...chat,
-                    title: remoteChat.title || chat.title,
-                  };
-                })
-              );
-            })
-            .catch(() => {
-            });
-        }
-      }
+          if (isFirstMessageInEmptyChat && !hasFetchedTitle) {
+            hasFetchedTitle = true;
 
-      setChats((previous) =>
-        previous.map((chat) => {
-          if (chat.id !== chatId) {
-            return chat;
+            ChatApi.getChat(chatId)
+              .then((response) => {
+                const remoteChat = response.data;
+
+                setChats((previous) =>
+                  previous.map((chat) => {
+                    if (chat.id !== chatId) {
+                      return chat;
+                    }
+
+                    return {
+                      ...chat,
+                      title: remoteChat.title || chat.title,
+                    };
+                  })
+                );
+              })
+              .catch(() => {
+              });
           }
+        }
 
-          const nextMode = chat.mode === 'empty' ? 'doc' : chat.mode;
-
-          const existingIndex = chat.messages.findIndex(
-            (message) => message.id === chunk.messageId
-          );
-
-          if (existingIndex === -1) {
-            const newMessage: ChatMessage = {
-              id: chunk.messageId,
-              role: chunk.role,
-              createdAt: chunk.createdAt,
-              content: chunk.content,
-            };
-
-            const filteredMessages =
-              chunk.role === 'user'
-                ? chat.messages.filter((message) => message.id !== localUserMessageId)
-                : chat.messages;
-
-            if (chunk.role === 'assistant') {
-              setCurrentStreamAssistantId(chunk.messageId);
+        setChats((previous) =>
+          previous.map((chat) => {
+            if (chat.id !== chatId) {
+              return chat;
             }
+
+            const nextMode = chat.mode === 'empty' ? 'doc' : chat.mode;
+
+            const existingIndex = chat.messages.findIndex(
+              (message) => message.id === chunk.messageId
+            );
+
+            if (existingIndex === -1) {
+              const newMessage: ChatMessage = {
+                id: chunk.messageId,
+                role: chunk.role,
+                createdAt: chunk.createdAt,
+                content: chunk.content,
+              };
+
+              const filteredMessages =
+                chunk.role === 'user'
+                  ? chat.messages.filter((message) => message.id !== localUserMessageId)
+                  : chat.messages;
+
+              if (chunk.role === 'assistant') {
+                setCurrentStreamAssistantId(chunk.messageId);
+              }
+
+              return {
+                ...chat,
+                mode: nextMode,
+                messages: [...filteredMessages, newMessage],
+              };
+            }
+
+            const nextMessages: ChatMessage[] = chat.messages.map((message) => {
+              if (message.id !== chunk.messageId) {
+                return message;
+              }
+
+              return {
+                ...message,
+                content: message.content + chunk.content,
+              };
+            });
 
             return {
               ...chat,
               mode: nextMode,
-              messages: [...filteredMessages, newMessage],
+              messages: nextMessages,
             };
-          }
+          })
+        );
 
-          const nextMessages: ChatMessage[] = chat.messages.map((message) => {
-            if (message.id !== chunk.messageId) {
-              return message;
-            }
-
-            return {
-              ...message,
-              content: message.content + chunk.content,
-            };
-          });
-
-          return {
-            ...chat,
-            mode: nextMode,
-            messages: nextMessages,
-          };
-        })
-      );
-
-      // fullText is kept in closure for title derivation
-    })
-      .then(() => {
-        finalize();
+        // fullText is kept in closure for title derivation
       })
-      .catch(() => {
-        finalize();
-      });
+        .then(() => {
+          finalize();
+        })
+        .catch(() => {
+          finalize();
+        });
+    }, delayMs);
   };
 
   if (isInitialLoading && chats.length === 0) {
@@ -998,7 +1020,6 @@ export default function ChatPage() {
                               allMessages={allMessages}
                               messagesContainerRef={messagesContainerRef}
                               onScroll={handleMessagesScroll}
-                              isMessagesScrollLoading={isMessagesScrollLoading}
                               isThinking={isThinking}
                               pendingAssistantChatId={pendingAssistantChatId}
                               currentStreamAssistantId={currentStreamAssistantId}

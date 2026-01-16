@@ -1,6 +1,30 @@
 import { z } from 'zod';
 import { apiClient } from './api-client';
 
+const PASSWORD_ENCRYPTION_KEY =
+  process.env.NEXT_PUBLIC_PASSWORD_ENCRYPTION_KEY ??
+  process.env.PASSWORD_ENCRYPTION_KEY ??
+  '';
+
+function xorEncrypt(value: string, key: string): string {
+  if (!key) {
+    return value;
+  }
+
+  const valueChars = Array.from(value).map((char) => char.charCodeAt(0));
+  const keyChars = Array.from(key).map((char) => char.charCodeAt(0));
+
+  const encryptedChars = valueChars.map((code, index) => {
+    const keyCode = keyChars[index % keyChars.length];
+    return code ^ keyCode;
+  });
+
+  const encryptedString = String.fromCharCode(...encryptedChars);
+  return typeof btoa === 'function'
+    ? btoa(encryptedString)
+    : Buffer.from(encryptedString, 'binary').toString('base64');
+}
+
 const AuthUserSchema = z.object({
   id: z.string(),
   email: z.string().email(),
@@ -105,9 +129,15 @@ export type SyncSupabaseUserResponse = z.infer<typeof SyncSupabaseUserResponseSc
 export type UpdateProfileRequest = z.infer<typeof UpdateProfileRequestSchema>;
 
 async function signUp(payload: SignUpRequest): Promise<SignUpResponse> {
+  const encryptedPassword = xorEncrypt(payload.password, PASSWORD_ENCRYPTION_KEY);
+  const requestPayload: SignUpRequest = {
+    ...payload,
+    password: encryptedPassword,
+  };
+
   return apiClient.post<SignUpRequest, SignUpResponse>(
     '/auth/signup',
-    payload,
+    requestPayload,
     {
       requestSchema: SignUpRequestSchema,
       responseSchema: SignUpResponseSchema,
@@ -116,9 +146,15 @@ async function signUp(payload: SignUpRequest): Promise<SignUpResponse> {
 }
 
 async function signIn(payload: SignInRequest): Promise<SignInResponse> {
+  const encryptedPassword = xorEncrypt(payload.password, PASSWORD_ENCRYPTION_KEY);
+  const requestPayload: SignInRequest = {
+    ...payload,
+    password: encryptedPassword,
+  };
+
   const response = await apiClient.post<SignInRequest, SignInResponse>(
     '/auth/signin',
-    payload,
+    requestPayload,
     {
       requestSchema: SignInRequestSchema,
       responseSchema: SignInResponseSchema,

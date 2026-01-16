@@ -2,20 +2,16 @@
 
 import { useEffect } from 'react';
 import { useAppStore } from '@/store/app-store';
+import { useAuthStore } from '@/store/auth-store';
+import { apiClient } from '@/lib/api';
 
-/**
- * Store Provider Component
- * Initializes global stores and handles side effects
- */
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   const { theme, setTheme } = useAppStore();
+  const { token, isAuthenticated } = useAuthStore();
 
-  // Initialize theme on mount
   useEffect(() => {
-    // Apply initial theme
     setTheme(theme);
 
-    // Listen for system theme changes
     if (theme === 'system' && typeof window !== 'undefined') {
       const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
       const handleChange = () => setTheme('system');
@@ -23,6 +19,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       return () => mediaQuery.removeEventListener('change', handleChange);
     }
   }, [theme, setTheme]);
+
+  useEffect(() => {
+    if (isAuthenticated && token) {
+      apiClient.setAuthToken(token);
+      return;
+    }
+
+    apiClient.clearAuthToken();
+  }, [isAuthenticated, token]);
 
   return <>{children}</>;
 }

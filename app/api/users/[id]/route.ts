@@ -24,7 +24,7 @@ const updateUserSchema = z.object({
 // GET /api/users/[id] - Get user by ID
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: any
 ) {
   const user = users.find((u) => u.id === params.id);
 
@@ -38,7 +38,7 @@ export async function GET(
 // PUT /api/users/[id] - Update user
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: any
 ) {
   try {
     const userIndex = users.findIndex((u) => u.id === params.id);
@@ -73,7 +73,7 @@ export async function PUT(
 // DELETE /api/users/[id] - Delete user
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: any
 ) {
   const userIndex = users.findIndex((u) => u.id === params.id);
 

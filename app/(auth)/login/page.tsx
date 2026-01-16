@@ -36,7 +36,7 @@ export default function LoginPage() {
       login(
         {
           id: user.id,
-          name: user.user_metadata?.fullName ?? user.email ?? '',
+          name: user.email,
           email: user.email,
         },
         accessToken

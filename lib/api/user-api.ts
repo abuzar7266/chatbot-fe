@@ -21,45 +21,22 @@ export class UserApi {
     return apiClient.get(ApiEndpoints.users.get(id), ApiSchemas.user);
   }
 
-  /**
-   * Create a new user
-   */
   static async create(data: z.infer<typeof ApiRequestSchemas.createUser>) {
-    return apiClient.post(
-      ApiEndpoints.users.create,
-      data,
-      {
-        requestSchema: ApiRequestSchemas.createUser,
-        responseSchema: ApiSchemas.user,
-      }
-    );
+    return apiClient.post(ApiEndpoints.users.create, data, {
+      requestSchema: ApiRequestSchemas.createUser,
+      responseSchema: ApiSchemas.user,
+    });
   }
 
-  /**
-   * Update user
-   */
-  static async update(
-    id: string,
-    data: z.infer<typeof ApiRequestSchemas.updateUser>
-  ) {
-    return apiClient.put(
-      ApiEndpoints.users.update(id),
-      data,
-      {
-        requestSchema: ApiRequestSchemas.updateUser,
-        responseSchema: ApiSchemas.user,
-      }
-    );
+  static async update(id: string, data: z.infer<typeof ApiRequestSchemas.updateUser>) {
+    return apiClient.put(ApiEndpoints.users.update(id), data, {
+      requestSchema: ApiRequestSchemas.updateUser,
+      responseSchema: ApiSchemas.user,
+    });
   }
 
-  /**
-   * Delete user
-   */
   static async delete(id: string) {
-    return apiClient.delete(
-      ApiEndpoints.users.delete(id),
-      ApiSchemas.successResponse
-    );
+    return apiClient.delete(ApiEndpoints.users.delete(id), ApiSchemas.successResponse);
   }
 }
 

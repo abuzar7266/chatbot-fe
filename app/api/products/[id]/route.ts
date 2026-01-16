@@ -28,7 +28,7 @@ const updateProductSchema = z.object({
 // GET /api/products/[id] - Get product by ID
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: any
 ) {
   const product = products.find((p) => p.id === params.id);
 
@@ -42,7 +42,7 @@ export async function GET(
 // PATCH /api/products/[id] - Update product
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: any
 ) {
   try {
     const productIndex = products.findIndex((p) => p.id === params.id);
@@ -77,7 +77,7 @@ export async function PATCH(
 // DELETE /api/products/[id] - Delete product
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: any
 ) {
   const productIndex = products.findIndex((p) => p.id === params.id);
 

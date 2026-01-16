@@ -3,23 +3,19 @@
 import Image from 'next/image';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  Button,
-  Input,
-} from '@/components/ui';
+import { Card, CardContent, CardFooter, CardHeader, Button, Input } from '@/components/ui';
 import { AuthApi } from '@/lib/api';
+import { useAuthStore } from '@/store/auth-store';
 import { useNotification } from '@/hooks';
 
 export default function SignupPage() {
   const router = useRouter();
   const { notify } = useNotification();
+  const { login } = useAuthStore();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [fullName, setFullName] = useState('');
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,12 +34,26 @@ export default function SignupPage() {
     setIsSubmitting(true);
 
     try {
-      const response = await AuthApi.signUp({ email, password });
+      const response = await AuthApi.signUp({ email, password, fullName });
       const message =
         response.data.message ||
         'Sign up successful. Please check your email to verify your account.';
 
       notify.success(message);
+
+      const signInResponse = await AuthApi.signIn({ email, password });
+      const { accessToken, user } = signInResponse.data;
+
+      login(
+        {
+          id: user.id,
+          name: (user as any).user_metadata?.fullName ?? user.email ?? '',
+          email: user.email,
+        },
+        accessToken
+      );
+
+      notify.success('Signed in successfully');
       router.push('/chat');
     } catch (err: any) {
       const message =
@@ -89,6 +99,22 @@ export default function SignupPage() {
                 {error}
               </p>
             )}
+            <div className="space-y-1.5">
+              <label htmlFor="fullName" className="text-xs font-medium text-slate-200">
+                Full name
+              </label>
+              <Input
+                id="fullName"
+                type="text"
+                autoComplete="name"
+                value={fullName}
+                onChange={(event) => setFullName(event.target.value)}
+                placeholder="Full name"
+                disabled={isSubmitting}
+                size="md"
+                className="h-10 border-[#343434] bg-[#1c1c1c] text-xs placeholder:text-[#8b8b8b]"
+              />
+            </div>
             <div className="space-y-1.5">
               <label htmlFor="email" className="text-xs font-medium text-slate-200">
                 Email
@@ -151,7 +177,7 @@ export default function SignupPage() {
             <Button
               type="submit"
               className="mt-3 h-10 w-full rounded-md bg-white text-xs font-medium text-black hover:bg-slate-100 disabled:opacity-70"
-              disabled={isSubmitting || !email || !password || !acceptTerms}
+              disabled={isSubmitting || !email || !password || !fullName || !acceptTerms}
             >
               {isSubmitting ? 'Signing up...' : 'Sign Up'}
             </Button>

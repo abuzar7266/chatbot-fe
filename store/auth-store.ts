@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { apiClient } from '@/lib/api';
 
 interface User {
   id: string;
@@ -27,6 +28,7 @@ export const useAuthStore = create<AuthState>()(
       isLoading: false,
 
       login: (user, token) => {
+        apiClient.setAuthToken(token);
         set({
           user,
           token,
@@ -36,6 +38,7 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logout: () => {
+        apiClient.clearAuthToken();
         set({
           user: null,
           token: null,
@@ -55,7 +58,7 @@ export const useAuthStore = create<AuthState>()(
       },
     }),
     {
-      name: 'auth-storage', // localStorage key
+      name: 'auth-storage',
       partialize: (state) => ({
         user: state.user,
         token: state.token,
@@ -64,4 +67,3 @@ export const useAuthStore = create<AuthState>()(
     }
   )
 );
-

@@ -1,25 +1,20 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useAuthStore, useAppStore, useUserStore } from '@/store';
 import { useNotification } from '@/hooks';
 import { Button } from '@/components/ui';
 
 export default function StateExamplePage() {
-  const { user, isAuthenticated, login, logout } = useAuthStore();
+  const router = useRouter();
+  const { user, isAuthenticated, logout } = useAuthStore();
   const { theme, setTheme, sidebarOpen, toggleSidebar } = useAppStore();
   const { users, isLoading, setUsers, addUser, removeUser } = useUserStore();
   const { notify } = useNotification();
 
   const handleLogin = () => {
-    login(
-      {
-        id: '1',
-        name: 'John Doe',
-        email: 'john@example.com',
-      },
-      'mock-jwt-token'
-    );
-    notify.success('Logged in successfully!');
+    notify.info('Redirecting to login page');
+    router.push('/login');
   };
 
   const handleLogout = () => {
@@ -128,7 +123,9 @@ export default function StateExamplePage() {
           <h2 className="text-2xl font-bold mb-4">User Store</h2>
           <div className="space-y-4">
             <div>
-              <p className="text-sm text-gray-600">Users: {users.length}</p>
+              <p className="text-sm text-gray-600">
+                Users: {users.length} {isLoading ? '(loading...)' : ''}
+              </p>
             </div>
             <div className="space-y-2">
               <Button onClick={handleAddUser} className="w-full">

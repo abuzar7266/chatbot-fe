@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 
-interface User {
+export interface User {
   id: string;
   name: string;
   email: string;

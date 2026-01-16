@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { apiClient, ApiClient } from './api-client';
 
 /**
  * API Response schemas

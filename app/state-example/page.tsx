@@ -59,7 +59,7 @@ export default function StateExamplePage() {
             {user && (
               <div>
                 <p className="text-sm text-gray-600">User:</p>
-                <p className="font-semibold">{user.name}</p>
+                <p className="font-semibold">{user.fullName || user.email}</p>
                 <p className="text-sm text-gray-500">{user.email}</p>
               </div>
             )}

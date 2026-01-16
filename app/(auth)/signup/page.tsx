@@ -44,11 +44,20 @@ export default function SignupPage() {
       const signInResponse = await AuthApi.signIn({ email, password });
       const { accessToken, user } = signInResponse.data;
 
+      let resolvedFullName: string | null = null;
+
+      try {
+        const profileResponse = await AuthApi.getProfile();
+        resolvedFullName = profileResponse.data.fullName;
+      } catch {
+        resolvedFullName = fullName || null;
+      }
+
       login(
         {
           id: user.id,
-          name: fullName || user.email,
           email: user.email,
+          fullName: resolvedFullName,
         },
         accessToken
       );

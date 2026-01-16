@@ -149,10 +149,16 @@ export default function ChatPage() {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
 
-  const displayName = user?.name || user?.email || 'User';
-  const displayEmail = user?.email || '';
+  const rawName = user?.fullName?.trim() || '';
+  const rawEmail = user?.email?.trim() || '';
+  const hasDistinctName = rawName.length > 0 && rawName !== rawEmail;
+  const displayName = hasDistinctName ? rawName : rawEmail || 'User';
+  const displayEmail = hasDistinctName ? rawEmail : '';
   const initials = (() => {
-    const source = (user?.name && user.name.trim()) || (user?.email && user.email.trim()) || '';
+    const source =
+      (user?.fullName && user.fullName.trim()) ||
+      (user?.email && user.email.trim()) ||
+      '';
     if (!source) {
       return '';
     }

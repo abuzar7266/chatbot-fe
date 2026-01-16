@@ -33,11 +33,20 @@ export default function LoginPage() {
       const response = await AuthApi.signIn({ email, password });
       const { accessToken, user } = response.data;
 
+      let fullName: string | null = null;
+
+      try {
+        const profileResponse = await AuthApi.getProfile();
+        fullName = profileResponse.data.fullName;
+      } catch {
+        fullName = null;
+      }
+
       login(
         {
           id: user.id,
-          name: user.email,
           email: user.email,
+          fullName,
         },
         accessToken
       );

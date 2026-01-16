@@ -4,8 +4,8 @@ import { apiClient } from '@/lib/api';
 
 interface User {
   id: string;
-  name: string;
   email: string;
+  fullName: string | null;
 }
 
 interface AuthState {

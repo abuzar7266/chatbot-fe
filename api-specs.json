@@ -3,7 +3,7 @@
   "info": {
     "title": "ChatGPT Clone API - Full Backend Specification",
     "version": "1.0.0",
-    "description": "Full OpenAPI specification for the ChatGPT-style backend used in the Turing Technologies technical test. Includes health, authentication, chat, and message streaming endpoints."
+    "description": "Full OpenAPI specification for the ChatGPT-style backend used in the ChatBot application. Includes health, authentication, chat, and message streaming endpoints."
   },
   "servers": [
     {

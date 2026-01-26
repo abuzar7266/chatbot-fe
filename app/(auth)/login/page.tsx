@@ -94,7 +94,7 @@ export default function LoginPage() {
           <div className="relative h-9 w-9">
             <Image
               src="/assets/auth-logo.png"
-              alt="TuringTech Test logo"
+              alt="ChatBot logo"
               fill
               className="rounded-lg object-contain"
               sizes="36px"
@@ -102,7 +102,7 @@ export default function LoginPage() {
             />
           </div>
           <span className="text-2xl font-semibold tracking-tight">
-            TuringTech Test
+            ChatBot
           </span>
         </div>
       </div>
